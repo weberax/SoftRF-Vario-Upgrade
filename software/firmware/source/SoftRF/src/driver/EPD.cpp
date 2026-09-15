@@ -59,10 +59,8 @@ static uint8_t anti_ghosting_minutes = 0;
 
 static int EPD_view_mode = 0;
 bool EPD_vmode_updated = true;
-uint16_t EPD_pages_mask = (1 << VIEW_MODE_STATUS) |
-                          (1 << VIEW_MODE_RADAR ) |
-                          (1 << VIEW_MODE_TEXT  ) |
-                          (1 << VIEW_MODE_TIME  );
+uint16_t EPD_pages_mask = (1 << VIEW_MODE_VARIO) |
+                          (1 << VIEW_MODE_STATUS);
 
 volatile uint8_t EPD_update_in_progress = EPD_UPDATE_NONE;
 
@@ -517,6 +515,9 @@ void EPD_loop()
     } else {
       switch (EPD_view_mode)
       {
+      case VIEW_MODE_VARIO:
+        EPD_vario_loop();
+        break;
       case VIEW_MODE_RADAR:
         EPD_radar_loop();
         break;
@@ -727,6 +728,9 @@ void EPD_Up()
   if (hw_info.display == DISPLAY_EPD_1_54) {
     switch (EPD_view_mode)
     {
+    case VIEW_MODE_VARIO:
+      EPD_vario_next();
+      break;
     case VIEW_MODE_RADAR:
       EPD_radar_unzoom();
       break;
@@ -755,6 +759,9 @@ void EPD_Down()
   if (hw_info.display == DISPLAY_EPD_1_54) {
     switch (EPD_view_mode)
     {
+    case VIEW_MODE_VARIO:
+      EPD_vario_prev();
+      break;
     case VIEW_MODE_RADAR:
       EPD_radar_zoom();
       break;

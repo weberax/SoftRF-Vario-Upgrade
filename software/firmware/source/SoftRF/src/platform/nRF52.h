@@ -299,7 +299,7 @@ struct rst_info {
 /* -------------------------------------- */
 //#define USE_NMEALIB              //  +  8 kb
 #define USE_NMEA_CFG               //  +    kb
-#define USE_SKYVIEW_CFG            //  +    kb
+//#define USE_SKYVIEW_CFG            //  +    kb  (removed - vario focus)
 #define EXCLUDE_BMP180             //  -  2 kb
 //#define EXCLUDE_BMP280           //  -    kb
 #define EXCLUDE_BME680             //  -    kb
@@ -308,7 +308,7 @@ struct rst_info {
 //#define EXCLUDE_SPA06            //  -  5 kb
 //#define EXCLUDE_NRF905           //  -    kb
 //#define EXCLUDE_MAVLINK          //  -    kb
-//#define EXCLUDE_UATM             //  -    kb
+#define EXCLUDE_UATM               //  -  5 kb  (UAT/ADS-B not needed)
 #define EXCLUDE_EGM96              //  - 16 kb
 //#define EXCLUDE_LED_RING         //  -    kb
 
@@ -328,15 +328,15 @@ struct rst_info {
 //#define USE_GDL90_MSL
 //#define USE_IBEACON
 //#define EXCLUDE_NUS
-//#define EXCLUDE_IMU
+//#define EXCLUDE_IMU                //  - IMU available; will add Kalman later
 #define USE_OGN_ENCRYPTION
 #define ENABLE_ADSL
 #define ENABLE_PROL
 #if !defined(ARDUINO_ARCH_MBED) && !defined(ARDUINO_ARCH_ZEPHYR)
 #define USE_BLE_MIDI
-#define ENABLE_REMOTE_ID
-#define USE_EXT_I2S_DAC
-#define USE_TFT
+//#define ENABLE_REMOTE_ID           //  - removed (no drone ID needed for vario)
+//#define USE_EXT_I2S_DAC            //  - removed (no external DAC needed)
+//#define USE_TFT                    //  - removed (TFT not on T-Echo; ~10 KB)
 #define USE_RADIOLIB
 //#define EXCLUDE_LR11XX
 #if defined(USE_RADIOLIB)

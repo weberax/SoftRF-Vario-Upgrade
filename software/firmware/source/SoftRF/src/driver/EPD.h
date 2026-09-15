@@ -71,7 +71,8 @@ enum
 
 enum
 {
-	VIEW_MODE_STATUS = 0,
+	VIEW_MODE_VARIO = 0,
+	VIEW_MODE_STATUS,
 	VIEW_MODE_RADAR,
 	VIEW_MODE_TEXT,
 	VIEW_MODE_BARO,
@@ -229,6 +230,11 @@ void EPD_Mode();
 void EPD_Up();
 void EPD_Down();
 void EPD_Message(const char *, const char *);
+
+void EPD_vario_setup();
+void EPD_vario_loop();
+void EPD_vario_next();
+void EPD_vario_prev();
 
 void EPD_status_setup();
 void EPD_status_loop();
