@@ -1,0 +1,3 @@
+# Local Arduino-CLI toolchain, cores, downloads, and build output.
+# Kept out of the repo so upstream rebases stay clean.
+/.arduino-data/
