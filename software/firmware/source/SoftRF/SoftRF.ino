@@ -107,6 +107,8 @@
 #include "src/driver/WiFi.h"
 #include "src/ui/Web.h"
 #include "src/driver/Baro.h"
+#include "src/driver/Vario.h"
+#include "src/driver/PiezoBeeper.h"
 #include "src/TTNHelper.h"
 #include "src/TrafficHelper.h"
 #include "src/system/Recorder.h"
@@ -242,6 +244,10 @@ void setup()
 
   Sound_setup();
   SoC->Sound_test(resetInfo->reason);
+
+  /* Initialize vario subsystem (Kalman + IMU + piezo beeper) */
+  PiezoBeeper_setup();
+  Vario_setup();
 
   switch (settings->mode)
   {
@@ -382,6 +388,8 @@ void normal()
   bool success;
 
   Baro_loop();
+
+  Vario_loop();  /* Kalman filter + IMU + beeper frequency modulation */
 
 #if defined(ENABLE_AHRS)
   AHRS_loop();
@@ -604,10 +612,12 @@ void txrx_test()
 #if DEBUG_TIMING
   baro_start_ms = millis();
 #endif
-  Baro_loop();
+   Baro_loop();
 #if DEBUG_TIMING
-  baro_end_ms = millis();
+   baro_end_ms = millis();
 #endif
+
+   Vario_loop();  /* Kalman filter + IMU + beeper frequency modulation */
 
 #if defined(ENABLE_AHRS)
   AHRS_loop();

@@ -39,6 +39,7 @@
 #include "../driver/EEPROM.h"
 #include "../driver/GNSS.h"
 #include "../driver/Baro.h"
+#include "../driver/Vario.h"
 #include "../driver/LED.h"
 #include "../driver/Bluetooth.h"
 #include "../driver/EPD.h"
@@ -4843,6 +4844,9 @@ void handleEvent(AceButton* button, uint8_t eventType, uint8_t buttonState) {
 
         shutdown(SOFTRF_SHUTDOWN_BUTTON);
         Serial.println(F("This will never be printed."));
+      } else if (button == &button_2) {
+        /* Long-press on PAD (button_2): toggle vario beeper mute */
+        Vario_toggleMute();
       }
       break;
   }
@@ -4956,13 +4960,14 @@ static void nRF52_Button_setup()
   ModeButtonConfig->setDoubleClickDelay(1500);
   ModeButtonConfig->setLongPressDelay(2000);
 
-  ButtonConfig* UpButtonConfig = button_2.getButtonConfig();
-  UpButtonConfig->setEventHandler(handleEvent);
-  UpButtonConfig->setFeature(ButtonConfig::kFeatureClick);
-//  UpButtonConfig->setDebounceDelay(15);
-  UpButtonConfig->setClickDelay(600);
-  UpButtonConfig->setDoubleClickDelay(1500);
-  UpButtonConfig->setLongPressDelay(2000);
+   ButtonConfig* UpButtonConfig = button_2.getButtonConfig();
+   UpButtonConfig->setEventHandler(handleEvent);
+   UpButtonConfig->setFeature(ButtonConfig::kFeatureClick);
+   UpButtonConfig->setFeature(ButtonConfig::kFeatureLongPress);  /* Enable long-press for vario beeper mute */
+ //  UpButtonConfig->setDebounceDelay(15);
+   UpButtonConfig->setClickDelay(600);
+   UpButtonConfig->setDoubleClickDelay(1500);
+   UpButtonConfig->setLongPressDelay(2000);
 
 //  attachInterrupt(digitalPinToInterrupt(mode_button_pin), onModeButtonEvent, CHANGE );
   if (up_button_pin >= 0) {

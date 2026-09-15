@@ -153,6 +153,51 @@ static bool bmp280_probe()
          );
 }
 
+/**
+ * Configure BMP280 for fast vario mode (~25 Hz output rate).
+ * Sets OSR_P=×4, OSR_T=×2, filter=×4, standby=10ms.
+ */
+static void bmp280_setup_fast()
+{
+    /* BMP280 I²C register definitions */
+    #define BMP280_CTRL_MEAS_ADDR  0xF4
+    #define BMP280_CONFIG_ADDR     0xF5
+    
+    /* CTRL_MEAS (0xF4): osrs_t[7:5] | osrs_p[4:2] | mode[1:0]
+       osrs_t = 0b010 (×2), osrs_p = 0b100 (×4), mode = 0b11 (normal)
+       = 0010_1011 = 0x2B
+    */
+    uint8_t ctrl_meas = 0x2B;
+    
+    /* CONFIG (0xF5): t_sb[7:5] | filter[4:2] | spi3w_en[0]
+       t_sb = 0b010 (10 ms standby), filter = 0b100 (coeff=16), spi3w_en = 0
+       = 0010_1000 = 0x28
+    */
+    uint8_t config = 0x28;
+    
+    /* Try both possible BMP280 I2C addresses */
+    for (uint8_t addr : {BMP280_ADDRESS, BMP280_ADDRESS_ALT}) {
+        Wire.beginTransmission(addr);
+        Wire.write(BMP280_CTRL_MEAS_ADDR);
+        Wire.write(ctrl_meas);
+        uint8_t err = Wire.endTransmission();
+        
+        if (err == 0) {  /* Success */
+            delay(5);
+            Wire.beginTransmission(addr);
+            Wire.write(BMP280_CONFIG_ADDR);
+            Wire.write(config);
+            Wire.endTransmission();
+            delay(5);
+            
+            Serial.println(F("[Baro] BMP280 configured for fast vario mode (≈25 Hz)"));
+            return;
+        }
+    }
+    
+    Serial.println(F("[Baro] WARNING: Could not configure BMP280 registers (I2C error)"));
+}
+
 static void bmp280_setup()
 {
     Serial.print(F("Temperature = "));
@@ -166,6 +211,9 @@ static void bmp280_setup()
     Serial.print(F("Approx altitude = "));
     Serial.print(bmp280.readAltitude(1013.25)); // this should be adjusted to your local forcase
     Serial.println(F(" m"));
+
+    /* Configure BMP280 for fast vario mode */
+    bmp280_setup_fast();
 
     Serial.println();
     delay(500);

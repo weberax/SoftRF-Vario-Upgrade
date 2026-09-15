@@ -22,6 +22,7 @@
 
 #include "../driver/EPD.h"
 #include "../driver/Baro.h"
+#include "../driver/Vario.h"
 
 #include <TinyGPS++.h>
 
@@ -53,16 +54,11 @@ static const char* get_cardinal_8(float course) {
 }
 
 /**
- * Calculate 4-second vertical speed average (m/s).
- * Returns the rate of change of pressure altitude over the last ~4 seconds.
+ * Get filtered vertical speed from Kalman filter (m/s).
+ * Returns the Kalman-filtered climb/sink rate, which is smooth and responsive.
  */
-static float calc_vs_4s() {
-  if (!full_4) return 0;
-  
-  float alt_newest = alt_hist_4[idx_4];
-  float alt_oldest = alt_hist_4[(idx_4 + 1) % VARIO_HIST_4];
-  
-  return (alt_newest - alt_oldest) / VARIO_HIST_4;  /* m/s */
+static float get_vs_filtered() {
+  return Vario_getVario();
 }
 
 /**
@@ -160,13 +156,13 @@ static void EPD_Draw_Vario()
       display->print(buf);
     }
 
-    /* ===== Line 3: 4-second Vertical Speed ===== */
+    /* ===== Line 3: Kalman-filtered Vertical Speed ===== */
     {
-      float vs_4s = calc_vs_4s();
-      float vs_fpm = vs_4s * M_S_TO_FPM;
+      float vs_filtered = get_vs_filtered();
+      float vs_fpm = vs_filtered * M_S_TO_FPM;
 
       snprintf(buf, sizeof(buf), "VAR %+5.2f m/s",
-               vs_4s);
+               vs_filtered);
       
       display->getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
       display->setCursor(8, y_start + 2 * line_height);
