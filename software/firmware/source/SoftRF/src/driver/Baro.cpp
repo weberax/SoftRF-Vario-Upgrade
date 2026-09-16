@@ -176,7 +176,9 @@ static void bmp280_setup_fast()
     uint8_t config = 0x28;
     
     /* Try both possible BMP280 I2C addresses */
-    for (uint8_t addr : {BMP280_ADDRESS, BMP280_ADDRESS_ALT}) {
+    uint8_t addrs[] = {BMP280_ADDRESS, BMP280_ADDRESS_ALT};
+    for (int i = 0; i < 2; i++) {
+        uint8_t addr = addrs[i];
         Wire.beginTransmission(addr);
         Wire.write(BMP280_CTRL_MEAS_ADDR);
         Wire.write(ctrl_meas);

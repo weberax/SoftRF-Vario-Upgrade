@@ -180,6 +180,7 @@ static TaskHandle_t EPD_Task_Handle = NULL;
 #endif /* ARDUINO_ARCH_MBED */
 
 #if !defined(ARDUINO_NRF52840_PCA10056) && \
+    !defined(ARDUINO_NRF52840_FEATHER) && \
     !defined(ARDUINO_ARCH_MBED)         && \
     !defined(ARDUINO_ARCH_ZEPHYR)
 #error "This nRF52 build variant is not supported!"
@@ -852,8 +853,12 @@ static void nRF52_setup()
   /* inactivate initVariant() of PCA10056 */
   pinMode(PIN_LED1, INPUT);
   pinMode(PIN_LED2, INPUT);
+  #if defined(PIN_LED3)
   pinMode(PIN_LED3, INPUT);
+  #endif
+  #if defined(PIN_LED4)
   pinMode(PIN_LED4, INPUT);
+  #endif
 
   nRF52_board = nRF52_bl_check("TECHOBOOT")      ? NRF52_LILYGO_TECHO_REV_2   :
                 nRF52_bl_check("T1000-E")        ? NRF52_SEEED_T1000E         :

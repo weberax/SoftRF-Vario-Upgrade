@@ -22,6 +22,7 @@
 
 #include "Vario.h"
 #include "Baro.h"
+#include "PiezoBeeper.h"
 #include <kalmanvert.h>
 #include <math.h>
 #include <stdio.h>
@@ -66,7 +67,6 @@ static bool beeper_muted = false;
 /* ==================== Forward declarations ==================== */
 
 extern float Baro_altitude(void);
-extern void PiezoBeeper_setFreq(uint16_t freq);
 
 #if !defined(EXCLUDE_IMU)
 #include <MPU9250.h>

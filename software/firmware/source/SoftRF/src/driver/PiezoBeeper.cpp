@@ -20,7 +20,13 @@
 
 #if defined(NRF52840_XXAA) || defined(NRF52832_XXAA)
 
+#include <Arduino.h>
 #include <nrf.h>
+#include <cstddef>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* ==================== Pin definitions ==================== */
 
@@ -35,7 +41,7 @@
 #define PIEZO_CH_NEG        1   /* Channel 1 → P0.08, inverted polarity */
 
 /* PWM clock source: 16 MHz / 16 = 1 MHz tick rate (gives us finer resolution) */
-#define PIEZO_PWM_CLOCK     PWM_PRESCALER_PRESCALER_DIV16
+#define PIEZO_PWM_CLOCK     PWM_PRESCALER_PRESCALER_DIV_16
 
 /* ==================== State ==================== */
 
@@ -190,4 +196,8 @@ uint16_t PiezoBeeper_getFreq(void) {
   void PiezoBeeper_setup(void) {}
   void PiezoBeeper_setFreq(uint16_t freq_hz) { (void)freq_hz; }
   uint16_t PiezoBeeper_getFreq(void) { return 0; }
+#endif
+
+#ifdef __cplusplus
+}
 #endif
