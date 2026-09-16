@@ -21,6 +21,9 @@
 #if defined(USE_EPAPER)
 
 #include "../driver/EPD.h"
+#include "../driver/Baro.h"
+#include "../driver/Vario.h"
+
 #include <TinyGPS++.h>
 
 /* Navbox structure for 5-box layout (4 boxes top/middle, 1 wide box bottom) */
@@ -129,17 +132,23 @@ static void EPD_Draw_NavBoxes()
 
     display->setFont(&FreeMonoBold18pt7b);
 
-    /* Box 1 value (GS km/h) */
+    /* Box 1 value (GS km/h) - FreeMonoBold18pt7b */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox1.x + 25, navbox1.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox1.x + 75, navbox1.y + 32);
-#endif
+#endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%.0f", navbox1.value);
     display->print(buf);
 
-    /* Box 2 value (HDG) */
+    /* Box 2 value (HDG) - FreeMonoBold18pt7b */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox2.x + 15, navbox2.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox2.x + 55, navbox2.y + 32);
-#endif
+#endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%.0f", navbox2.value);
     display->print(buf);
 
@@ -163,19 +172,25 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox4.x + 5, navbox4.y + 5 + tbh);
     display->print(navbox4.title);
 
-    /* Box 3 value (GPS m) - use smaller font like Status page */
+    /* Box 3 value (GPS m) - FreeSerifBold12pt7b (SMALLER FONT!) */
     display->setFont(&FreeSerifBold12pt7b);
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox3.x + 5, navbox3.y + 50);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox3.x + 28, navbox3.y + 30);
-#endif
+#endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
     display->print(buf);
 
-    /* Box 4 value (vV m/s with sign) */
+    /* Box 4 value (vV m/s with sign) - FreeMonoBold18pt7b */
     display->setFont(&FreeMonoBold18pt7b);
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox4.x + 15, navbox4.y + 50);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox4.x + 55, navbox4.y + 30);
-#endif
+#endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%+.2f", navbox4.value);
     display->print(buf);
 
@@ -193,10 +208,15 @@ static void EPD_Draw_NavBoxes()
 
     display->setFont(&FreeMonoBold18pt7b);
 
-    /* Box 5 value */
+    /* Box 5 value (GLIDE ratio or CLIMB average) - FreeMonoBold18pt7b */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox5.x + 25, navbox5.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox5.x + 75, navbox5.y + 32);
-#endif
+#endif /* EPD_ASPECT_RATIO_2C1 */
+    
+    /* Display the formatted value */
     snprintf(buf, sizeof(buf), "%.1f", navbox5.value);
     display->print(buf);
 
@@ -232,7 +252,7 @@ void EPD_vario_loop()
       
       if (sink_rate > 0.1f && speed_m_s > 0.01f) {
         navbox5.value = speed_m_s / sink_rate;  /* L/D ratio */
-        strcpy(navbox5.title, "GLIDE 1:");
+        strcpy(navbox5.title, "GLIDE");
       } else {
         navbox5.value = 0;
         strcpy(navbox5.title, "GLIDE");
@@ -246,10 +266,12 @@ void EPD_vario_loop()
 
 void EPD_vario_next()
 {
+  /* Up button: no-op for now */
 }
 
 void EPD_vario_prev()
 {
+  /* Down button: no-op for now */
 }
 
 #endif /* USE_EPAPER */
