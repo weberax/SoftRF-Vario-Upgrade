@@ -52,9 +52,10 @@ void EPD_baro_setup()
   }
 #endif /* EPD_ASPECT_RATIO_2C1 */
 
-  if (hw_info.baro != BARO_MODULE_NONE) {
-    EPD_pages_mask |= (1 << VIEW_MODE_BARO);
-  }
+  /* Baro page disabled - showing vario page with integrated alt/climb instead */
+  // if (hw_info.baro != BARO_MODULE_NONE) {
+  //   EPD_pages_mask |= (1 << VIEW_MODE_BARO);
+  // }
 
   alt_scale = ui->units == UNITS_METRIC ? 1.0 : _GPS_FEET_PER_METER;
 

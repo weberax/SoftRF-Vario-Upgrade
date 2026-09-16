@@ -29,6 +29,7 @@ extern const GFXfont FreeMonoBold12pt7b PROGMEM;
 extern const GFXfont FreeMono18pt7b PROGMEM;
 extern const GFXfont FreeMonoBold18pt7b PROGMEM;
 extern const GFXfont FreeMonoBold24pt7b PROGMEM;
+extern const GFXfont FreeSerifBold12pt7b PROGMEM;
 #endif /* USE_EPAPER */
 
 #define EPD_EXPIRATION_TIME     5 /* seconds */

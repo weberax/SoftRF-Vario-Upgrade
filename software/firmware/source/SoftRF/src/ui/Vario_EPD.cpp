@@ -27,38 +27,34 @@
 #include <TinyGPS++.h>
 
 /* Ring buffers for averaging */
-#define VARIO_HIST_4   4
 #define VARIO_HIST_20  20
+#define VARIO_HIST_2S  20  /* 2-second smoothing at ~10 Hz = 20 samples */
 
-static float alt_hist_4[VARIO_HIST_4];
 static float alt_hist_20[VARIO_HIST_20];
-static uint8_t idx_4 = 0;
+static float vario_hist_2s[VARIO_HIST_2S];
 static uint8_t idx_20 = 0;
-static bool full_4 = false;
+static uint8_t idx_2s = 0;
 static bool full_20 = false;
+static bool full_2s = false;
 
-/* Cardinal directions (8-way) */
-static const char* cardinal_8[8] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-
-/* Constants for conversion */
-#define M_TO_FT  3.28084
-#define M_S_TO_FPM  196.85  /* m/s to feet/min */
-
-/**
- * Get 8-way cardinal direction from course (degrees, 0-360)
- */
-static const char* get_cardinal_8(float course) {
-  if (course < 0 || course >= 360) course = fmod(course, 360);
-  int idx = (int)((course + 22.5) / 45.0) & 7;
-  return cardinal_8[idx];
-}
+/* Navbox structure for 6-box grid layout */
+static navbox_t navbox1;  /* GS km/h (top-left) */
+static navbox_t navbox2;  /* HDG (top-right, no title) */
+static navbox_t navbox3;  /* GPS m (middle-left) */
+static navbox_t navbox4;  /* vV m/s (middle-right) */
+static navbox_t navbox5;  /* GLIDE/CLIMB wide box (bottom, spans both columns) */
 
 /**
- * Get filtered vertical speed from Kalman filter (m/s).
- * Returns the Kalman-filtered climb/sink rate, which is smooth and responsive.
+ * Get 2-second smoothed vertical speed from ring buffer (m/s)
  */
-static float get_vs_filtered() {
-  return Vario_getVario();
+static float get_vs_smoothed_2s() {
+  if (!full_2s) return 0;
+  
+  float sum = 0;
+  for (int i = 0; i < VARIO_HIST_2S; i++) {
+    sum += vario_hist_2s[i];
+  }
+  return sum / VARIO_HIST_2S;
 }
 
 /**
@@ -77,7 +73,7 @@ static float calc_avg_climb_20s() {
 /**
  * Calculate glide ratio from current ground speed and average sink rate.
  * Returns glide ratio (horizontal distance / vertical distance).
- * Input: speed in m/s, sink_rate in m/s (should be negative for descent).
+ * Input: speed in m/s, sink_rate in m/s (should be positive for descent).
  */
 static float calc_glide_ratio(float speed_m_s, float sink_rate_m_s) {
   /* Standard glide ratio threshold: only show if sink rate > 0.1 m/s */
@@ -95,26 +91,85 @@ static float calc_glide_ratio(float speed_m_s, float sink_rate_m_s) {
 
 void EPD_vario_setup()
 {
-  /* Initialize ring buffers */
-  for (int i = 0; i < VARIO_HIST_4; i++) {
-    alt_hist_4[i] = 0;
+  uint16_t display_width  = display->width();
+  uint16_t display_height = display->height();
+  int16_t dy = 0;
+
+#if defined(EPD_ASPECT_RATIO_2C1)
+  if (display->epd2.panel == GxEPD2::DEPG0213BN) {
+    if (display_width  == 128) display_width  = 122;
+    if (display_height == 128) {
+      display_height = 122;
+      if (display->getRotation() == ROTATE_90 ) { dy = 6; }
+    }
   }
+#endif /* EPD_ASPECT_RATIO_2C1 */
+
+  /* Initialize ring buffers */
   for (int i = 0; i < VARIO_HIST_20; i++) {
     alt_hist_20[i] = 0;
   }
-  idx_4 = 0;
+  for (int i = 0; i < VARIO_HIST_2S; i++) {
+    vario_hist_2s[i] = 0;
+  }
   idx_20 = 0;
-  full_4 = false;
+  idx_2s = 0;
   full_20 = false;
+  full_2s = false;
+
+  /* Setup navboxes in 2x3 grid (Status page style) */
+  
+  /* Box 1: GS km/h (top-left) */
+  memcpy(navbox1.title, "GS km/h", 7);
+  navbox1.x = 0;
+  navbox1.y = 0 + dy;
+  navbox1.width = display_width / 2;
+  navbox1.height = display_height / 3;
+  navbox1.value = 0;
+  navbox1.timestamp = millis();
+
+  /* Box 2: HDG (top-right, no title) */
+  memcpy(navbox2.title, "", 0);
+  navbox2.x = navbox1.width;
+  navbox2.y = navbox1.y;
+  navbox2.width = display_width / 2;
+  navbox2.height = display_height / 3;
+  navbox2.value = 0;
+  navbox2.timestamp = millis();
+
+  /* Box 3: GPS m (middle-left) */
+  memcpy(navbox3.title, "GPS m", 5);
+  navbox3.x = navbox1.x;
+  navbox3.y = navbox1.y + navbox1.height;
+  navbox3.width = display_width / 2;
+  navbox3.height = display_height / 3;
+  navbox3.value = 0;
+  navbox3.timestamp = millis();
+
+  /* Box 4: vV m/s (middle-right) */
+  memcpy(navbox4.title, "vV m/s", 6);
+  navbox4.x = navbox3.width;
+  navbox4.y = navbox3.y;
+  navbox4.width = display_width / 2;
+  navbox4.height = display_height / 3;
+  navbox4.value = 0;
+  navbox4.timestamp = millis();
+
+  /* Box 5: GLIDE/CLIMB wide (bottom, full width) */
+  memcpy(navbox5.title, "GLIDE", 5);
+  navbox5.x = navbox1.x;
+  navbox5.y = navbox3.y + navbox3.height;
+  navbox5.width = display_width;
+  navbox5.height = display_height / 3;
+  navbox5.value = 0;
+  navbox5.timestamp = millis();
 }
 
-static void EPD_Draw_Vario()
+static void EPD_Draw_NavBoxes()
 {
   char buf[32];
   int16_t  tbx, tby;
   uint16_t tbw, tbh;
-  uint16_t display_width  = display->width();
-  uint16_t display_height = display->height();
 
 #if defined(USE_EPD_TASK)
   if (EPD_update_in_progress == EPD_UPDATE_NONE) {
@@ -123,79 +178,107 @@ static void EPD_Draw_Vario()
 #endif
     display->fillScreen(GxEPD_WHITE);
 
-    display->setFont(&FreeMonoBold18pt7b);
-    display->setTextColor(GxEPD_BLACK);
+    /* Draw boxes 1 & 2 (top row) */
+    display->drawRoundRect( navbox1.x + 1, navbox1.y + 1,
+                            navbox1.width - 2, navbox1.height - 2,
+                            4, GxEPD_BLACK);
+    display->drawRoundRect( navbox2.x + 1, navbox2.y + 1,
+                            navbox2.width - 2, navbox2.height - 2,
+                            4, GxEPD_BLACK);
 
-    uint16_t line_height = 36;
-    uint16_t y_start = 20;
+    /* Draw boxes 3 & 4 (middle row) */
+    display->drawRoundRect( navbox3.x + 1, navbox3.y + 1,
+                            navbox3.width - 2, navbox3.height - 2,
+                            4, GxEPD_BLACK);
+    display->drawRoundRect( navbox4.x + 1, navbox4.y + 1,
+                            navbox4.width - 2, navbox4.height - 2,
+                            4, GxEPD_BLACK);
 
-    /* ===== Line 1: GPS Speed + Heading ===== */
-    {
-      float speed_kn = ThisAircraft.speed;
-      float speed_kmh = speed_kn * 1.852;  /* knots to km/h */
-      const char *cardinal = get_cardinal_8(ThisAircraft.course);
+    /* Draw box 5 (bottom wide) */
+    display->drawRoundRect( navbox5.x + 1, navbox5.y + 1,
+                            navbox5.width - 2, navbox5.height - 2,
+                            4, GxEPD_BLACK);
 
-      snprintf(buf, sizeof(buf), "SPD %03.0f %s %s",
-               speed_kmh, "km/h", cardinal);
-      
-      display->getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-      display->setCursor(8, y_start);
-      display->print(buf);
+    /* Draw titles (9pt font) */
+    display->setFont(&FreeMono9pt7b);
+
+    /* Box 1 title */
+    display->getTextBounds(navbox1.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox1.x + 5, navbox1.y + 5 + tbh);
+    display->print(navbox1.title);
+
+    /* Box 2 title (empty, so skip) */
+    
+    /* Box 3 title */
+    display->getTextBounds(navbox3.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox3.x + 5, navbox3.y + 5 + tbh);
+    display->print(navbox3.title);
+
+    /* Box 4 title */
+    display->getTextBounds(navbox4.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox4.x + 5, navbox4.y + 5 + tbh);
+    display->print(navbox4.title);
+
+    /* Box 5 title */
+    display->getTextBounds(navbox5.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox5.x + 5, navbox5.y + 5 + tbh);
+    display->print(navbox5.title);
+
+    /* Draw values (18pt bold font) */
+    display->setFont(&FreeSerifBold12pt7b);
+
+    /* Box 1 value (GS km/h) */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox1.x + 55, navbox1.y + 32);
+#else
+    display->setCursor(navbox1.x + 25, navbox1.y + 50);
+#endif
+    snprintf(buf, sizeof(buf), "%.0f", navbox1.value);
+    display->print(buf);
+
+    /* Box 2 value (HDG - no title, just value) */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox2.x + 55, navbox2.y + 32);
+#else
+    display->setCursor(navbox2.x + 25, navbox2.y + 50);
+#endif
+    snprintf(buf, sizeof(buf), "%.0f°", navbox2.value);
+    display->print(buf);
+
+    /* Box 3 value (GPS m) */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox3.x + 55, navbox3.y + 32);
+#else
+    display->setCursor(navbox3.x + 25, navbox3.y + 50);
+#endif
+    snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
+    display->print(buf);
+
+    /* Box 4 value (vV m/s - show with sign and 2 decimals) */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox4.x + 50, navbox4.y + 32);
+#else
+    display->setCursor(navbox4.x + 20, navbox4.y + 50);
+#endif
+    snprintf(buf, sizeof(buf), "%+.2f", navbox4.value);
+    display->print(buf);
+
+    /* Box 5 value (GLIDE ratio or CLIMB average) */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox5.x + 50, navbox5.y + 32);
+#else
+    display->setCursor(navbox5.x + 25, navbox5.y + 50);
+#endif
+    
+    /* navbox5.value encodes: >0 = glide ratio, <0 = climb (show as climb m/s) */
+    if (navbox5.value > 0 && navbox5.value < 100) {
+      snprintf(buf, sizeof(buf), "1:%.1f", navbox5.value);
+    } else if (navbox5.value < 0) {
+      snprintf(buf, sizeof(buf), "%.2f m/s", -navbox5.value);
+    } else {
+      snprintf(buf, sizeof(buf), "---");
     }
-
-    /* ===== Line 2: GPS Altitude (MSL) ===== */
-    {
-      float alt_m = ThisAircraft.altitude;
-      float alt_ft = alt_m * M_TO_FT;
-
-      snprintf(buf, sizeof(buf), "ALT  %4.0f m",
-               alt_m);
-      
-      display->getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-      display->setCursor(8, y_start + line_height);
-      display->print(buf);
-    }
-
-    /* ===== Line 3: Kalman-filtered Vertical Speed ===== */
-    {
-      float vs_filtered = get_vs_filtered();
-      float vs_fpm = vs_filtered * M_S_TO_FPM;
-
-      snprintf(buf, sizeof(buf), "VAR %+5.2f m/s",
-               vs_filtered);
-      
-      display->getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-      display->setCursor(8, y_start + 2 * line_height);
-      display->print(buf);
-    }
-
-    /* ===== Line 4-5: 20-second Climb OR Glide Ratio ===== */
-    {
-      float avg_climb_20s = calc_avg_climb_20s();
-      
-      if (avg_climb_20s > 0) {
-        /* Climbing: show average climb rate */
-        snprintf(buf, sizeof(buf), "CLB %+5.2f m/s",
-                 avg_climb_20s);
-      } else {
-        /* Descending: show glide ratio */
-        float speed_m_s = ThisAircraft.speed * 0.5144;  /* knots to m/s */
-        float sink_rate = -avg_climb_20s;  /* Make positive */
-        float glide = calc_glide_ratio(speed_m_s, sink_rate);
-        
-        if (glide > 0 && glide < 100) {
-          snprintf(buf, sizeof(buf), "L/D  1:%.1f",
-                   glide);
-        } else {
-          /* No valid glide or glide > 99 */
-          snprintf(buf, sizeof(buf), "L/D    ---");
-        }
-      }
-      
-      display->getTextBounds(buf, 0, 0, &tbx, &tby, &tbw, &tbh);
-      display->setCursor(8, y_start + 3 * line_height);
-      display->print(buf);
-    }
+    display->print(buf);
 
 #if defined(USE_EPD_TASK)
     EPD_update_in_progress = EPD_UPDATE_FAST;
@@ -208,29 +291,52 @@ static void EPD_Draw_Vario()
 void EPD_vario_loop()
 {
   if (isTimeToEPD()) {
-    /* Update ring buffers with current pressure altitude at 1 Hz */
+    /* Update altitude ring buffer at 1 Hz */
     float pressure_alt = Baro_altitude();
-
-    /* Update 4-sample ring */
-    alt_hist_4[idx_4] = pressure_alt;
-    idx_4 = (idx_4 + 1) % VARIO_HIST_4;
-    if (idx_4 == 0) full_4 = true;
-
-    /* Update 20-sample ring */
     alt_hist_20[idx_20] = pressure_alt;
     idx_20 = (idx_20 + 1) % VARIO_HIST_20;
     if (idx_20 == 0) full_20 = true;
 
-    /* Redraw the vario page */
-    EPD_Draw_Vario();
+    /* Update 2-second smoothing ring buffer with Kalman vario at ~10 Hz */
+    float vs_raw = Vario_getVario();
+    vario_hist_2s[idx_2s] = vs_raw;
+    idx_2s = (idx_2s + 1) % VARIO_HIST_2S;
+    if (idx_2s == 0) full_2s = true;
 
+    /* Prepare navbox values */
+    float speed_kn = ThisAircraft.speed;
+    float speed_kmh = speed_kn * 1.852;
+    float alt_m = ThisAircraft.altitude;
+    float vs_smoothed = get_vs_smoothed_2s();
+    float avg_climb_20s = calc_avg_climb_20s();
+
+    navbox1.value = speed_kmh;
+    navbox2.value = ThisAircraft.course;
+    navbox3.value = alt_m;
+    navbox4.value = vs_smoothed;
+
+    /* Calculate glide ratio or show climb average */
+    if (avg_climb_20s > 0) {
+      /* Climbing: show as negative (encoded) to switch to CLIMB display */
+      navbox5.value = -avg_climb_20s;
+      strcpy(navbox5.title, "CLIMB");
+    } else {
+      /* Descending: show glide ratio */
+      float speed_m_s = speed_kn * 0.5144;
+      float sink_rate = -avg_climb_20s;
+      float glide = calc_glide_ratio(speed_m_s, sink_rate);
+      navbox5.value = glide;
+      strcpy(navbox5.title, "GLIDE");
+    }
+
+    EPD_Draw_NavBoxes();
     EPDTimeMarker = millis();
   }
 }
 
 void EPD_vario_next()
 {
-  /* Up button: no-op for now (can add units toggle later) */
+  /* Up button: no-op for now */
 }
 
 void EPD_vario_prev()
