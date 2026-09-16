@@ -23,6 +23,7 @@
 #include "../driver/EPD.h"
 #include "../driver/Baro.h"
 #include "../driver/Vario.h"
+#include "../driver/GNSS.h"
 
 #include <TinyGPS++.h>
 
@@ -253,13 +254,13 @@ static void EPD_Draw_NavBoxes()
 void EPD_vario_loop()
 {
   if (isTimeToEPD()) {
-    /* Read data directly from ThisAircraft (already populated by Baro_loop and GPS) */
-    float speed_kmh = ThisAircraft.speed * 1.852;  /* knots to km/h */
+    /* Read data directly from sensors */
+    float speed_kmh = gnss.speed.kmph();  /* GPS speed in km/h */
     float vs_m_s = ThisAircraft.vs / (_GPS_FEET_PER_METER * 60.0);  /* ft/min to m/s */
 
     navbox1.value = speed_kmh;
     navbox2.value = ThisAircraft.course;
-    navbox3.value = ThisAircraft.pressure_altitude;
+    navbox3.value = ThisAircraft.altitude;  /* GPS altitude in meters */
     navbox4.value = vs_m_s;
     
     /* Calculate glide ratio or show climb */
@@ -269,7 +270,7 @@ void EPD_vario_loop()
       strcpy(navbox5.title, "CLIMB");
     } else {
       /* Descending or level - calculate glide ratio */
-      float speed_m_s = ThisAircraft.speed * 0.5144;  /* knots to m/s */
+      float speed_m_s = gnss.speed.mps();  /* GPS speed in m/s */
       float sink_rate = -vs_m_s;
       
       if (sink_rate > 0.1f && speed_m_s > 0.01f) {
