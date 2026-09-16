@@ -180,6 +180,7 @@ bool EPD_setup(bool splash_screen)
 
   rval = display->probe();
 
+  EPD_vario_setup();
   EPD_status_setup();
   EPD_radar_setup();
   EPD_text_setup();
