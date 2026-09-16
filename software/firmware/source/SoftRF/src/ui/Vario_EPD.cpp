@@ -200,7 +200,7 @@ static void EPD_Draw_NavBoxes()
 
     display->setFont(&FreeMonoBold18pt7b);
 
-    /* Box 1 value (GS km/h) */
+    /* Box 1 value (GS km/h) - FreeMonoBold18pt7b */
 #if defined(EPD_ASPECT_RATIO_1C1)
     display->setCursor(navbox1.x + 25, navbox1.y + 52);
 #endif /* EPD_ASPECT_RATIO_1C1 */
@@ -210,7 +210,7 @@ static void EPD_Draw_NavBoxes()
     snprintf(buf, sizeof(buf), "%.0f", navbox1.value);
     display->print(buf);
 
-    /* Box 2 value (HDG) */
+    /* Box 2 value (HDG) - FreeMonoBold18pt7b */
 #if defined(EPD_ASPECT_RATIO_1C1)
     display->setCursor(navbox2.x + 15, navbox2.y + 52);
 #endif /* EPD_ASPECT_RATIO_1C1 */
@@ -240,24 +240,24 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox4.x + 5, navbox4.y + 5 + tbh);
     display->print(navbox4.title);
 
-    display->setFont(&FreeMonoBold18pt7b);
-
-    /* Box 3 value (GPS m) */
+    /* Box 3 value (GPS m) - FreeSerifBold12pt7b (SMALLER FONT!) */
+    display->setFont(&FreeSerifBold12pt7b);
 #if defined(EPD_ASPECT_RATIO_1C1)
-    display->setCursor(navbox3.x + 25, navbox3.y + 52);
+    display->setCursor(navbox3.x + 5, navbox3.y + 50);
 #endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox3.x + 75, navbox3.y + 32);
+    display->setCursor(navbox3.x + 28, navbox3.y + 30);
 #endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
     display->print(buf);
 
-    /* Box 4 value (vV m/s with sign) */
+    /* Box 4 value (vV m/s with sign) - FreeMonoBold18pt7b */
+    display->setFont(&FreeMonoBold18pt7b);
 #if defined(EPD_ASPECT_RATIO_1C1)
-    display->setCursor(navbox4.x + 15, navbox4.y + 52);
+    display->setCursor(navbox4.x + 15, navbox4.y + 50);
 #endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox4.x + 55, navbox4.y + 32);
+    display->setCursor(navbox4.x + 55, navbox4.y + 30);
 #endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%+.2f", navbox4.value);
     display->print(buf);
@@ -276,7 +276,7 @@ static void EPD_Draw_NavBoxes()
 
     display->setFont(&FreeMonoBold18pt7b);
 
-    /* Box 5 value (GLIDE ratio or CLIMB average) */
+    /* Box 5 value (GLIDE ratio or CLIMB average) - FreeMonoBold18pt7b */
 #if defined(EPD_ASPECT_RATIO_1C1)
     display->setCursor(navbox5.x + 25, navbox5.y + 52);
 #endif /* EPD_ASPECT_RATIO_1C1 */
