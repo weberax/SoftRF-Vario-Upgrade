@@ -26,6 +26,29 @@
 
 #include <TinyGPS++.h>
 
+/* Helper function to convert heading degrees to 2-letter compass direction */
+static const char* heading_to_compass(float heading) {
+  heading = fmod(heading + 360.0, 360.0);  /* Normalize to 0-360 */
+  
+  if (heading < 11.25) return "N ";
+  if (heading < 33.75) return "NE";
+  if (heading < 56.25) return "E ";
+  if (heading < 78.75) return "SE";
+  if (heading < 101.25) return "S ";
+  if (heading < 123.75) return "SW";
+  if (heading < 146.25) return "W ";
+  if (heading < 168.75) return "NW";
+  if (heading < 191.25) return "N ";
+  if (heading < 213.75) return "NE";
+  if (heading < 236.25) return "E ";
+  if (heading < 258.75) return "SE";
+  if (heading < 281.25) return "S ";
+  if (heading < 303.75) return "SW";
+  if (heading < 326.25) return "W ";
+  if (heading < 348.75) return "NW";
+  return "N ";
+}
+
 /* Navbox structure for 5-box layout (4 boxes top/middle, 1 wide box bottom) */
 static navbox_t navbox1;  /* GS km/h (top-left) */
 static navbox_t navbox2;  /* HDG (top-right) */
@@ -149,8 +172,7 @@ static void EPD_Draw_NavBoxes()
 #if defined(EPD_ASPECT_RATIO_2C1)
     display->setCursor(navbox2.x + 55, navbox2.y + 32);
 #endif /* EPD_ASPECT_RATIO_2C1 */
-    snprintf(buf, sizeof(buf), "%.0f", navbox2.value);
-    display->print(buf);
+    display->print(heading_to_compass(navbox2.value));
 
     /* Draw boxes 3 & 4 (middle row) */
     display->drawRoundRect( navbox3.x + 1, navbox3.y + 1,
@@ -178,7 +200,7 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox3.x + 5, navbox3.y + 50);
 #endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox3.x + 28, navbox3.y + 30);
+    display->setCursor(navbox3.x + 38, navbox3.y + 30);
 #endif /* EPD_ASPECT_RATIO_2C1 */
     snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
     display->print(buf);
@@ -213,7 +235,7 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox5.x + 25, navbox5.y + 52);
 #endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox5.x + 75, navbox5.y + 32);
+    display->setCursor(navbox5.x + 55, navbox5.y + 32);
 #endif /* EPD_ASPECT_RATIO_2C1 */
     
     /* Display the formatted value */
