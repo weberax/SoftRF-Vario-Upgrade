@@ -37,12 +37,12 @@ static uint8_t idx_2s = 0;
 static bool full_20 = false;
 static bool full_2s = false;
 
-/* Navbox structure for 6-box grid layout */
+/* Navbox structure for 5-box layout (4 boxes top/middle, 1 wide box bottom) */
 static navbox_t navbox1;  /* GS km/h (top-left) */
-static navbox_t navbox2;  /* HDG (top-right, no title) */
+static navbox_t navbox2;  /* HDG (top-right) */
 static navbox_t navbox3;  /* GPS m (middle-left) */
 static navbox_t navbox4;  /* vV m/s (middle-right) */
-static navbox_t navbox5;  /* GLIDE/CLIMB wide box (bottom, spans both columns) */
+static navbox_t navbox5;  /* GLIDE/CLIMB wide box (bottom, full width) */
 
 /**
  * Get 2-second smoothed vertical speed from ring buffer (m/s)
@@ -117,7 +117,7 @@ void EPD_vario_setup()
   full_20 = false;
   full_2s = false;
 
-  /* Setup navboxes in 2x3 grid (Status page style) */
+  /* Setup navboxes: 4 boxes in top/middle rows, 1 wide box at bottom */
   
   /* Box 1: GS km/h (top-left) */
   memcpy(navbox1.title, "GS km/h", 7);
@@ -128,8 +128,8 @@ void EPD_vario_setup()
   navbox1.value = 0;
   navbox1.timestamp = millis();
 
-  /* Box 2: HDG (top-right, no title) */
-  memcpy(navbox2.title, "", 0);
+  /* Box 2: HDG (top-right) */
+  memcpy(navbox2.title, "HDG", 3);
   navbox2.x = navbox1.width;
   navbox2.y = navbox1.y;
   navbox2.width = display_width / 2;
@@ -186,6 +186,40 @@ static void EPD_Draw_NavBoxes()
                             navbox2.width - 2, navbox2.height - 2,
                             4, GxEPD_BLACK);
 
+    display->setFont(&FreeMono9pt7b);
+
+    /* Box 1 title */
+    display->getTextBounds(navbox1.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox1.x + 5, navbox1.y + 5 + tbh);
+    display->print(navbox1.title);
+
+    /* Box 2 title */
+    display->getTextBounds(navbox2.title, 0, 0, &tbx, &tby, &tbw, &tbh);
+    display->setCursor(navbox2.x + 5, navbox2.y + 5 + tbh);
+    display->print(navbox2.title);
+
+    display->setFont(&FreeMonoBold18pt7b);
+
+    /* Box 1 value (GS km/h) */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox1.x + 25, navbox1.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox1.x + 75, navbox1.y + 32);
+#endif /* EPD_ASPECT_RATIO_2C1 */
+    snprintf(buf, sizeof(buf), "%.0f", navbox1.value);
+    display->print(buf);
+
+    /* Box 2 value (HDG) */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox2.x + 15, navbox2.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox2.x + 55, navbox2.y + 32);
+#endif /* EPD_ASPECT_RATIO_2C1 */
+    snprintf(buf, sizeof(buf), "%.0f", navbox2.value);
+    display->print(buf);
+
     /* Draw boxes 3 & 4 (middle row) */
     display->drawRoundRect( navbox3.x + 1, navbox3.y + 1,
                             navbox3.width - 2, navbox3.height - 2,
@@ -194,21 +228,8 @@ static void EPD_Draw_NavBoxes()
                             navbox4.width - 2, navbox4.height - 2,
                             4, GxEPD_BLACK);
 
-    /* Draw box 5 (bottom wide) */
-    display->drawRoundRect( navbox5.x + 1, navbox5.y + 1,
-                            navbox5.width - 2, navbox5.height - 2,
-                            4, GxEPD_BLACK);
-
-    /* Draw titles (9pt font) */
     display->setFont(&FreeMono9pt7b);
 
-    /* Box 1 title */
-    display->getTextBounds(navbox1.title, 0, 0, &tbx, &tby, &tbw, &tbh);
-    display->setCursor(navbox1.x + 5, navbox1.y + 5 + tbh);
-    display->print(navbox1.title);
-
-    /* Box 2 title (empty, so skip) */
-    
     /* Box 3 title */
     display->getTextBounds(navbox3.title, 0, 0, &tbx, &tby, &tbw, &tbh);
     display->setCursor(navbox3.x + 5, navbox3.y + 5 + tbh);
@@ -219,62 +240,55 @@ static void EPD_Draw_NavBoxes()
     display->setCursor(navbox4.x + 5, navbox4.y + 5 + tbh);
     display->print(navbox4.title);
 
+    display->setFont(&FreeMonoBold18pt7b);
+
+    /* Box 3 value (GPS m) */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox3.x + 25, navbox3.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox3.x + 75, navbox3.y + 32);
+#endif /* EPD_ASPECT_RATIO_2C1 */
+    snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
+    display->print(buf);
+
+    /* Box 4 value (vV m/s with sign) */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox4.x + 15, navbox4.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
+#if defined(EPD_ASPECT_RATIO_2C1)
+    display->setCursor(navbox4.x + 55, navbox4.y + 32);
+#endif /* EPD_ASPECT_RATIO_2C1 */
+    snprintf(buf, sizeof(buf), "%+.2f", navbox4.value);
+    display->print(buf);
+
+    /* Draw box 5 (bottom, full width) */
+    display->drawRoundRect( navbox5.x + 1, navbox5.y + 1,
+                            navbox5.width - 2, navbox5.height - 2,
+                            4, GxEPD_BLACK);
+
+    display->setFont(&FreeMono9pt7b);
+
     /* Box 5 title */
     display->getTextBounds(navbox5.title, 0, 0, &tbx, &tby, &tbw, &tbh);
     display->setCursor(navbox5.x + 5, navbox5.y + 5 + tbh);
     display->print(navbox5.title);
 
-    /* Draw values (18pt bold font) */
-    display->setFont(&FreeSerifBold12pt7b);
-
-    /* Box 1 value (GS km/h) */
-#if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox1.x + 55, navbox1.y + 32);
-#else
-    display->setCursor(navbox1.x + 25, navbox1.y + 50);
-#endif
-    snprintf(buf, sizeof(buf), "%.0f", navbox1.value);
-    display->print(buf);
-
-    /* Box 2 value (HDG - no title, just value) */
-#if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox2.x + 55, navbox2.y + 32);
-#else
-    display->setCursor(navbox2.x + 25, navbox2.y + 50);
-#endif
-    snprintf(buf, sizeof(buf), "%.0f°", navbox2.value);
-    display->print(buf);
-
-    /* Box 3 value (GPS m) */
-#if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox3.x + 55, navbox3.y + 32);
-#else
-    display->setCursor(navbox3.x + 25, navbox3.y + 50);
-#endif
-    snprintf(buf, sizeof(buf), "%.0f", navbox3.value);
-    display->print(buf);
-
-    /* Box 4 value (vV m/s - show with sign and 2 decimals) */
-#if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox4.x + 50, navbox4.y + 32);
-#else
-    display->setCursor(navbox4.x + 20, navbox4.y + 50);
-#endif
-    snprintf(buf, sizeof(buf), "%+.2f", navbox4.value);
-    display->print(buf);
+    display->setFont(&FreeMonoBold18pt7b);
 
     /* Box 5 value (GLIDE ratio or CLIMB average) */
+#if defined(EPD_ASPECT_RATIO_1C1)
+    display->setCursor(navbox5.x + 25, navbox5.y + 52);
+#endif /* EPD_ASPECT_RATIO_1C1 */
 #if defined(EPD_ASPECT_RATIO_2C1)
-    display->setCursor(navbox5.x + 50, navbox5.y + 32);
-#else
-    display->setCursor(navbox5.x + 25, navbox5.y + 50);
-#endif
+    display->setCursor(navbox5.x + 75, navbox5.y + 32);
+#endif /* EPD_ASPECT_RATIO_2C1 */
     
     /* navbox5.value encodes: >0 = glide ratio, <0 = climb (show as climb m/s) */
     if (navbox5.value > 0 && navbox5.value < 100) {
       snprintf(buf, sizeof(buf), "1:%.1f", navbox5.value);
     } else if (navbox5.value < 0) {
-      snprintf(buf, sizeof(buf), "%.2f m/s", -navbox5.value);
+      snprintf(buf, sizeof(buf), "%+.2f", -navbox5.value);
     } else {
       snprintf(buf, sizeof(buf), "---");
     }
