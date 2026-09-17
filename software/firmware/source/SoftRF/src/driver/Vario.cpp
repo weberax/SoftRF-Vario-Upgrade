@@ -86,6 +86,12 @@ static bool beeper_muted = false;
 static bool alt_calibrated = false;
 static unsigned long gps_fix_stable_since = 0;
 
+/* Debug telemetry: 1Hz baro/GPS/Kalman status line + immediate fix
+   transition prints, for bring-up monitoring over serial. */
+#define VARIO_DEBUG_INTERVAL   1000  /* ms */
+static unsigned long debug_time_marker = 0;
+static bool debug_prev_fix_valid = false;
+
 /* ==================== Forward declarations ==================== */
 
 extern float Baro_altitude(void);
@@ -299,6 +305,13 @@ void Vario_loop(void) {
     kalman_alt = kalman.getPosition();
     kalman_vs = kalman.getVelocity();
 
+    /* Immediate (non-throttled) fix-acquired/lost transition log */
+    bool fix_valid_now = isValidGNSSFix();
+    if (fix_valid_now != debug_prev_fix_valid) {
+      Serial.println(fix_valid_now ? F("[Vario] GPS fix ACQUIRED") : F("[Vario] GPS fix LOST"));
+      debug_prev_fix_valid = fix_valid_now;
+    }
+
     /* One-shot GPS-altitude calibration: once a fix has stayed valid for a
        few seconds, nudge the Kalman altitude to match GPS. Corrects for the
        initial baro-only altitude being relative to whatever pressure was
@@ -326,6 +339,21 @@ void Vario_loop(void) {
       vario_beeper.update();
     } else {
       PiezoBeeper_setFreq(0);  /* muted */
+    }
+
+    /* Throttled (1Hz) baro/GPS/Kalman status line for bring-up monitoring */
+    if ((now - debug_time_marker) >= VARIO_DEBUG_INTERVAL) {
+      char dbuf[160];
+      snprintf(dbuf, sizeof(dbuf),
+        "[Vario] baro=%.2fm vacc=%.3f bias=%.3f%s | kalman alt=%.2fm vs=%.2fm/s | "
+        "GPS fix=%d alt=%.1fm spd=%.1fkmh sats=%u hdop=%s",
+        baro_alt, vert_accel, accel_bias_z, accel_bias_valid ? "" : "(warming up)",
+        kalman_alt, kalman_vs,
+        fix_valid_now ? 1 : 0, ThisAircraft.altitude, gnss.speed.kmph(),
+        gnss.satellites.value(),
+        gnss.hdop.isValid() ? String(gnss.hdop.hdop(), 2).c_str() : "-");
+      Serial.println(dbuf);
+      debug_time_marker = now;
     }
 
     vario_time_marker = now;
