@@ -82,7 +82,14 @@ static bool still_bias_applied = false;  /* nudged bias already for this still p
 static bool beeper_muted = false;
 
 /* One-shot GPS-altitude calibration state */
-#define VARIO_GPS_CAL_FIX_HOLD_MS   5000  /* require a continuously valid fix this long first */
+#define VARIO_GPS_CAL_FIX_HOLD_MS   5000   /* require a continuously valid fix this long first */
+/* Sanity bound vs. the running baro-relative altitude: real QNH-vs-standard-
+   pressure differences are at most on the order of ~150-200m even in
+   extreme weather. A bigger gap means the GPS vertical solution itself is
+   bad (common indoors/poor sky view - horizontal fix can look fine while
+   altitude is garbage) - skip calibrating against it rather than locking
+   in a bad value, and keep retrying each tick until it becomes plausible. */
+#define VARIO_GPS_CAL_MAX_BARO_DELTA_M   200.0f
 static bool alt_calibrated = false;
 static unsigned long gps_fix_stable_since = 0;
 
@@ -323,9 +330,20 @@ void Vario_loop(void) {
         if (gps_fix_stable_since == 0) {
           gps_fix_stable_since = now;
         } else if ((now - gps_fix_stable_since) >= VARIO_GPS_CAL_FIX_HOLD_MS) {
-          Vario_calibrateAlt(ThisAircraft.altitude);
-          kalman_alt = kalman.getCalibratedPosition();
-          alt_calibrated = true;
+          float delta = ThisAircraft.altitude - kalman.getPosition();
+          if (fabsf(delta) <= VARIO_GPS_CAL_MAX_BARO_DELTA_M) {
+            Vario_calibrateAlt(ThisAircraft.altitude);
+            kalman_alt = kalman.getCalibratedPosition();
+            alt_calibrated = true;
+          } else {
+            char wbuf[100];
+            snprintf(wbuf, sizeof(wbuf),
+              "[Vario] WARNING: GPS alt %.1fm vs baro %.1fm differ by %.1fm - "
+              "skipping calibration, GPS vertical fix looks bad",
+              ThisAircraft.altitude, kalman.getPosition(), delta);
+            Serial.println(wbuf);
+            gps_fix_stable_since = now;  /* retry in another VARIO_GPS_CAL_FIX_HOLD_MS, not every tick */
+          }
         }
       } else {
         gps_fix_stable_since = 0;
