@@ -302,7 +302,9 @@ void Vario_loop(void) {
       kalman.update(baro_alt, vert_accel, now);
     }
 
-    kalman_alt = kalman.getPosition();
+    /* getCalibratedPosition(), not getPosition() - the latter is the raw
+       internal state and never reflects Vario_calibrateAlt()'s GPS offset. */
+    kalman_alt = kalman.getCalibratedPosition();
     kalman_vs = kalman.getVelocity();
 
     /* Immediate (non-throttled) fix-acquired/lost transition log */
@@ -322,7 +324,7 @@ void Vario_loop(void) {
           gps_fix_stable_since = now;
         } else if ((now - gps_fix_stable_since) >= VARIO_GPS_CAL_FIX_HOLD_MS) {
           Vario_calibrateAlt(ThisAircraft.altitude);
-          kalman_alt = kalman.getPosition();
+          kalman_alt = kalman.getCalibratedPosition();
           alt_calibrated = true;
         }
       } else {
