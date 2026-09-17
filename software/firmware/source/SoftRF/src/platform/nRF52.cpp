@@ -323,7 +323,7 @@ ui_settings_t ui_settings = {
     .orientation  = DIRECTION_TRACK_UP,
     .adb          = DB_OGN,
     .idpref       = ID_TYPE,
-    .vmode        = VIEW_MODE_STATUS,
+    .vmode        = VIEW_MODE_VARIO,
     .voice        = VOICE_OFF,
     .aghost       = ANTI_GHOSTING_OFF,
     .filter       = TRAFFIC_FILTER_OFF,
@@ -3662,7 +3662,7 @@ static void nRF52_EEPROM_extension(int cmd)
       ui->orientation  = DIRECTION_TRACK_UP;
       ui->adb          = DB_OGN;
       ui->idpref       = ID_TYPE;
-      ui->vmode        = VIEW_MODE_STATUS;
+      ui->vmode        = VIEW_MODE_VARIO;
       ui->voice        = VOICE_OFF;
       ui->aghost       = ANTI_GHOSTING_OFF;
       ui->filter       = TRAFFIC_FILTER_OFF;
