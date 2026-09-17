@@ -57,6 +57,20 @@ static navbox_t navbox3;  /* GPS m (middle-left) */
 static navbox_t navbox4;  /* vV m/s (middle-right) */
 static navbox_t navbox5;  /* GLIDE/CLIMB wide box (bottom, full width) */
 
+/* CLIMB/GLIDE label hysteresis for box5 - EPD_vario_loop() runs at 1Hz
+   (isTimeToEPD()), so raw Kalman VS noise around 0 m/s was flipping the
+   label every second. Smooth VS with an EMA, then only switch label once
+   the smoothed value clearly crosses into the other zone (hysteresis dead
+   zone) AND stays there for a couple of ticks (dwell), rather than reacting
+   to a single sample. */
+#define VARIO_LABEL_EMA_ALPHA        0.4f   /* ~2-3s effective time constant at 1Hz */
+#define VARIO_LABEL_ENTER_CLIMB      0.3f   /* m/s - must exceed this to switch TO climb */
+#define VARIO_LABEL_ENTER_GLIDE     -0.3f   /* m/s - must drop below this to switch TO glide */
+#define VARIO_LABEL_DWELL_TICKS      2      /* consecutive 1Hz ticks required before committing */
+static float box5_smoothed_vs = 0;
+static bool  box5_is_climb = true;
+static uint8_t box5_pending_ticks = 0;
+
 void EPD_vario_setup()
 {
   uint16_t display_width  = display->width();
@@ -260,17 +274,33 @@ void EPD_vario_loop()
     navbox2.value = ThisAircraft.course;
     navbox3.value = ThisAircraft.altitude;  /* GPS altitude in meters */
     navbox4.value = vs_m_s * 10;
-    
-    /* Calculate glide ratio or show climb */
-    if (vs_m_s > 0) {
-      /* Climbing */
-      navbox5.value = vs_m_s * 10;
+
+    /* Smooth VS for the label decision (and for the steadier CLIMB number),
+       then only flip box5's CLIMB/GLIDE label once it clearly crosses into
+       the other zone and stays there for a couple of ticks. */
+    box5_smoothed_vs += VARIO_LABEL_EMA_ALPHA * (vs_m_s - box5_smoothed_vs);
+
+    bool wants_climb = box5_is_climb
+                        ? !(box5_smoothed_vs < VARIO_LABEL_ENTER_GLIDE)
+                        :   box5_smoothed_vs > VARIO_LABEL_ENTER_CLIMB;
+
+    if (wants_climb != box5_is_climb) {
+      if (++box5_pending_ticks >= VARIO_LABEL_DWELL_TICKS) {
+        box5_is_climb = wants_climb;
+        box5_pending_ticks = 0;
+      }
+    } else {
+      box5_pending_ticks = 0;
+    }
+
+    if (box5_is_climb) {
+      navbox5.value = box5_smoothed_vs * 10;
       strcpy(navbox5.title, "CLIMB");
     } else {
-      /* Descending or level - calculate glide ratio */
+      /* Glide ratio - uses current speed/sink, not the smoothed label VS */
       float speed_m_s = gnss.speed.mps();  /* GPS speed in m/s */
       float sink_rate = -vs_m_s;
-      
+
       if (sink_rate > 0.1f && speed_m_s > 0.01f) {
         navbox5.value = speed_m_s / sink_rate * 10;  /* L/D ratio */
         strcpy(navbox5.title, "GLIDE");
