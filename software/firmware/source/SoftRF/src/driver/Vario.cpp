@@ -26,6 +26,7 @@
 #include "EEPROM.h"
 #include "PiezoBeeper.h"
 #include <kalmanvert.h>
+#include <beeper.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -34,11 +35,12 @@
 #define VARIO_KALMAN_SIGMA_POSITION   0.1     /* m          */
 #define VARIO_KALMAN_SIGMA_ACCEL      0.3     /* m/s^2      */
 
-#define VARIO_SINKING_THRESHOLD       -2.0    /* m/s        */
-#define VARIO_CLIMBING_THRESHOLD       0.2    /* m/s        */
-
-#define VARIO_BEEP_BASE_FREQ          500      /* Hz at 0 m/s */
-#define VARIO_BEEP_FREQ_COEFF         150      /* Hz per m/s  */
+/* Beep thresholds/volume, ported from the reference project's tuned
+   VarioSettings.h rather than the GNUVarioBeeper library defaults. */
+#define VARIO_BEEP_SINKING_THRESHOLD          -4.0   /* m/s */
+#define VARIO_BEEP_CLIMBING_THRESHOLD          0.1   /* m/s */
+#define VARIO_BEEP_NEAR_CLIMBING_SENSITIVITY   3.5   /* m/s */
+#define VARIO_BEEP_VOLUME                        6   /* of 10 */
 
 /* Update rate for Kalman (milliseconds between updates) */
 #define VARIO_UPDATE_INTERVAL         10       /* 100 Hz      */
@@ -51,6 +53,11 @@
 static kalmanvert kalman;
 static unsigned long vario_time_marker = 0;
 static unsigned long baro_time_marker = 0;
+
+/* Climb/sink/near-climb beep pattern state machine, ported from the
+   reference project (GNUVario) - thresholds set from VARIO_BEEP_* in
+   Vario_setup(). */
+static beeper vario_beeper;
 
 /* Cached Kalman outputs */
 static float kalman_alt = 0;
@@ -208,6 +215,14 @@ void Vario_setup(void) {
   vario_time_marker = millis();
   baro_time_marker = millis();
   beeper_muted = false;
+
+  vario_beeper.setThresholds(VARIO_BEEP_SINKING_THRESHOLD,
+                              VARIO_BEEP_CLIMBING_THRESHOLD,
+                              VARIO_BEEP_NEAR_CLIMBING_SENSITIVITY);
+  vario_beeper.setVolume(VARIO_BEEP_VOLUME);
+  vario_beeper.setGlidingBeepState(true);   /* near-climb "blip", ref. project has this on */
+  vario_beeper.setGlidingAlarmState(false); /* ref. project has the near-climb alarm off */
+
   alt_calibrated = false;
   gps_fix_stable_since = 0;
   accel_bias_z = 0;
@@ -305,20 +320,10 @@ void Vario_loop(void) {
     /* Auto-refine accel bias while still */
     update_accel_bias();
 
-    /* Update beeper frequency based on Kalman VS (unless muted) */
+    /* Drive the climb/sink/near-climb beep pattern from Kalman VS (unless muted) */
     if (!beeper_muted) {
-      uint16_t beep_freq = 0;
-      
-      if (kalman_vs > VARIO_CLIMBING_THRESHOLD) {
-        /* Climbing: frequency increases with VS */
-        beep_freq = VARIO_BEEP_BASE_FREQ + (uint16_t)(VARIO_BEEP_FREQ_COEFF * kalman_vs);
-      } else if (kalman_vs < VARIO_SINKING_THRESHOLD) {
-        /* Sinking: lower frequency, single note */
-        beep_freq = 300;  /* fixed sink tone */
-      }
-      /* else: silent zone between -2 and +0.2 m/s */
-      
-      PiezoBeeper_setFreq(beep_freq);
+      vario_beeper.setVelocity(kalman_vs);
+      vario_beeper.update();
     } else {
       PiezoBeeper_setFreq(0);  /* muted */
     }
