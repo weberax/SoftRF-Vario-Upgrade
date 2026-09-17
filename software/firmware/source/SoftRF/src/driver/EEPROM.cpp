@@ -207,6 +207,12 @@ void EEPROM_defaults()
   eeprom_block.field.settings.igc_key[1] = 0;
   eeprom_block.field.settings.igc_key[2] = 0;
   eeprom_block.field.settings.igc_key[3] = 0;
+
+  eeprom_block.field.settings.imu_calibrated = false;
+  for (int i = 0; i < 3; i++) {
+    eeprom_block.field.settings.imu_accel_bias[i] = 0;
+    eeprom_block.field.settings.imu_gyro_bias[i]  = 0;
+  }
 }
 
 void EEPROM_store()

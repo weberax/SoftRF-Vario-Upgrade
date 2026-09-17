@@ -42,7 +42,7 @@
 #endif /* EXCLUDE_EEPROM */
 
 #define SOFTRF_EEPROM_MAGIC   0xBABADEDA
-#define SOFTRF_EEPROM_VERSION 0x00000061
+#define SOFTRF_EEPROM_VERSION 0x00000062
 
 enum
 {
@@ -86,6 +86,13 @@ typedef struct Settings {
 
     /* Use a key provided by (local) gliding contest organizer */
     uint32_t igc_key[4];
+
+    /* MPU9250 accel+gyro bias, from Vario's full-calibration routine
+       (MPU9250::calibrateAccelGyro()). Only valid when imu_calibrated. */
+    bool     imu_calibrated:1;
+    uint8_t  imu_resvd:7;
+    float    imu_accel_bias[3];
+    float    imu_gyro_bias[3];
 
 } __attribute__((packed)) settings_t;
 

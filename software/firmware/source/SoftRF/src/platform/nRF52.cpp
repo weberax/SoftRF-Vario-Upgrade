@@ -40,6 +40,7 @@
 #include "../driver/GNSS.h"
 #include "../driver/Baro.h"
 #include "../driver/Vario.h"
+#include "../driver/PiezoBeeper.h"
 #include "../driver/LED.h"
 #include "../driver/Bluetooth.h"
 #include "../driver/EPD.h"
@@ -3569,7 +3570,15 @@ extern midi::MidiInterface<BLEMidi> MIDI_BLE;
 
 static void nRF52_Sound_tone(int hz, uint8_t volume)
 {
-#if defined(USE_PWM_SOUND)
+#if !defined(EXCLUDE_VARIO)
+  /* PiezoBeeper owns the buzzer pin(s) whenever the vario feature is built
+     in - route stock alarms/jingles through it too, rather than also
+     driving the same pin via Arduino tone()/noTone() on a different PWM
+     peripheral (the two would otherwise fight over pin ownership). */
+  if (volume != BUZZER_OFF) {
+    PiezoBeeper_setFreq(hz > 0 ? (uint16_t) hz : 0);
+  }
+#elif defined(USE_PWM_SOUND)
   if (SOC_GPIO_PIN_BUZZER != SOC_UNUSED_PIN && volume != BUZZER_OFF) {
     if (hz > 0) {
       tone(SOC_GPIO_PIN_BUZZER, hz, ALARM_TONE_MS);
@@ -3579,7 +3588,7 @@ static void nRF52_Sound_tone(int hz, uint8_t volume)
                                    INPUT_PULLDOWN : INPUT);
     }
   }
-#endif /* USE_PWM_SOUND */
+#endif /* EXCLUDE_VARIO / USE_PWM_SOUND */
 
 #if defined(USE_USB_MIDI)
   if (USBDevice.mounted() && volume != BUZZER_OFF) {
@@ -4817,6 +4826,10 @@ void handleEvent(AceButton* button, uint8_t eventType, uint8_t buttonState) {
 //        Serial.println(F("kEventDoubleClicked."));
         digitalWrite(SOC_GPIO_PIN_EPD_BLGT,
                      digitalRead(SOC_GPIO_PIN_EPD_BLGT) == LOW);
+      } else if (button == &button_2) {
+        /* Double-click on PAD (button_2): run full IMU calibration.
+           Device must be held still and level. */
+        Vario_calibrateIMU();
       }
 #endif
       break;
@@ -4969,6 +4982,10 @@ static void nRF52_Button_setup()
    UpButtonConfig->setEventHandler(handleEvent);
    UpButtonConfig->setFeature(ButtonConfig::kFeatureClick);
    UpButtonConfig->setFeature(ButtonConfig::kFeatureLongPress);  /* Enable long-press for vario beeper mute */
+   UpButtonConfig->setFeature(ButtonConfig::kFeatureDoubleClick); /* Enable double-click for full IMU calibration */
+   UpButtonConfig->setFeature(ButtonConfig::kFeatureSuppressAfterDoubleClick);
+   UpButtonConfig->setFeature(
+                     ButtonConfig::kFeatureSuppressClickBeforeDoubleClick);
  //  UpButtonConfig->setDebounceDelay(15);
    UpButtonConfig->setClickDelay(600);
    UpButtonConfig->setDoubleClickDelay(1500);

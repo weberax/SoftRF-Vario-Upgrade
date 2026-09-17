@@ -22,6 +22,8 @@
 
 #include "Vario.h"
 #include "Baro.h"
+#include "GNSS.h"
+#include "EEPROM.h"
 #include "PiezoBeeper.h"
 #include <kalmanvert.h>
 #include <math.h>
@@ -60,9 +62,22 @@ static float baro_vs_raw = 0;
 static float accel_bias_z = 0;  /* Estimated bias on accel Z (earth frame, m/s^2) */
 static bool accel_bias_valid = false;
 static unsigned long still_duration = 0;
+static bool still_bias_applied = false;  /* nudged bias already for this still period? */
+
+/* Continuous auto-correction: how strongly each *new* stillness period
+   nudges accel_bias_z (0..1, low-pass coefficient) - applied once per still
+   period (not every tick while still), so slow thermal/temperature drift
+   gets tracked across a session without a single noisy sample yanking the
+   bias around. */
+#define VARIO_ACCEL_BIAS_LOWPASS   0.15f
 
 /* Beeper state */
 static bool beeper_muted = false;
+
+/* One-shot GPS-altitude calibration state */
+#define VARIO_GPS_CAL_FIX_HOLD_MS   5000  /* require a continuously valid fix this long first */
+static bool alt_calibrated = false;
+static unsigned long gps_fix_stable_since = 0;
 
 /* ==================== Forward declarations ==================== */
 
@@ -123,12 +138,15 @@ static float compute_vertical_accel(void) {
 
 /**
  * Check if the device has been motionless for >2 seconds (accel near 1g, low gyro).
- * If so, refine accel_bias_z estimate.
+ * If so, slowly nudge accel_bias_z towards the current reading. Runs every
+ * time stillness is (re-)detected, not just once, so it keeps tracking slow
+ * drift (temperature, long-term sensor aging) through a whole session
+ * instead of freezing after the first still period.
  */
 static void update_accel_bias(void) {
 #if !defined(EXCLUDE_IMU)
   extern MPU9250 imu_1;
-  
+
   float ax = imu_1.getAccX();
   float ay = imu_1.getAccY();
   float az = imu_1.getAccZ();
@@ -142,14 +160,25 @@ static void update_accel_bias(void) {
   /* Check if device is still (accel magnitude near 1g, gyro low) */
   if (fabsf(accel_mag - 9.80665f) < 0.5f && gyro_mag < 1.0f) {
     still_duration += VARIO_UPDATE_INTERVAL;
-    
-    /* After 2 seconds, apply low-pass refine of accel_bias */
-    if (still_duration > 2000 && !accel_bias_valid) {
-      accel_bias_z = compute_vertical_accel();
-      accel_bias_valid = true;
+
+    /* Nudge once, 2s into this still period - not on every tick for as
+       long as stillness continues, so a single still period contributes
+       one gentle correction rather than fully re-locking the bias. */
+    if (still_duration > 2000 && !still_bias_applied) {
+      float sample = compute_vertical_accel();
+      if (!accel_bias_valid) {
+        /* First estimate of the session: take it outright, no need to
+           slow-walk from an arbitrary zero starting point. */
+        accel_bias_z = sample;
+        accel_bias_valid = true;
+      } else {
+        accel_bias_z += VARIO_ACCEL_BIAS_LOWPASS * (sample - accel_bias_z);
+      }
+      still_bias_applied = true;
     }
   } else {
     still_duration = 0;
+    still_bias_applied = false;
   }
 #endif
 }
@@ -179,6 +208,27 @@ void Vario_setup(void) {
   vario_time_marker = millis();
   baro_time_marker = millis();
   beeper_muted = false;
+  alt_calibrated = false;
+  gps_fix_stable_since = 0;
+  accel_bias_z = 0;
+  accel_bias_valid = false;
+  still_duration = 0;
+  still_bias_applied = false;
+
+#if !defined(EXCLUDE_IMU)
+  /* Apply saved full-calibration bias (Vario_calibrateIMU()), if any. The
+     continuous auto-correction above still applies on top of this as a
+     slow trim, it just no longer has to start from zero every boot. */
+  if (hw_info.imu == IMU_MPU9250 && settings->imu_calibrated) {
+    imu_1.setAccBias(settings->imu_accel_bias[0],
+                      settings->imu_accel_bias[1],
+                      settings->imu_accel_bias[2]);
+    imu_1.setGyroBias(settings->imu_gyro_bias[0],
+                       settings->imu_gyro_bias[1],
+                       settings->imu_gyro_bias[2]);
+    Serial.println(F("[Vario] Applied saved MPU9250 calibration"));
+  }
+#endif
 
   char buf[80];
   snprintf(buf, sizeof(buf), "[Vario] Initialized: alt=%.1f m, sigma_p=%.2f m, sigma_a=%.2f m/s^2",
@@ -192,7 +242,16 @@ void Vario_loop(void) {
   
   /* ===== Kalman update @ 100 Hz ===== */
   if ((now - vario_time_marker) >= VARIO_UPDATE_INTERVAL) {
-    
+
+#if !defined(EXCLUDE_IMU)
+    /* Refresh accel/quaternion at the Kalman loop's own rate - the generic
+       G-load handling in nRF52.cpp only samples the IMU every 500ms, which
+       is far too coarse for accel-assisted vario response. */
+    if (hw_info.imu == IMU_MPU9250) {
+      imu_1.update();
+    }
+#endif
+
     /* Read current acceleration (earth frame, accounting for bias) */
     float vert_accel = compute_vertical_accel() - accel_bias_z;
     
@@ -224,6 +283,24 @@ void Vario_loop(void) {
 
     kalman_alt = kalman.getPosition();
     kalman_vs = kalman.getVelocity();
+
+    /* One-shot GPS-altitude calibration: once a fix has stayed valid for a
+       few seconds, nudge the Kalman altitude to match GPS. Corrects for the
+       initial baro-only altitude being relative to whatever pressure was
+       read at boot, rather than true MSL. */
+    if (!alt_calibrated) {
+      if (isValidGNSSFix()) {
+        if (gps_fix_stable_since == 0) {
+          gps_fix_stable_since = now;
+        } else if ((now - gps_fix_stable_since) >= VARIO_GPS_CAL_FIX_HOLD_MS) {
+          Vario_calibrateAlt(ThisAircraft.altitude);
+          kalman_alt = kalman.getPosition();
+          alt_calibrated = true;
+        }
+      } else {
+        gps_fix_stable_since = 0;
+      }
+    }
 
     /* Auto-refine accel bias while still */
     update_accel_bias();
@@ -270,6 +347,41 @@ void Vario_calibrateAlt(float gps_altitude) {
   Serial.println(buf);
 }
 
+void Vario_calibrateIMU(void) {
+#if !defined(EXCLUDE_IMU)
+  if (hw_info.imu != IMU_MPU9250) {
+    Serial.println(F("[Vario] IMU calibration skipped: no MPU9250 detected"));
+    return;
+  }
+
+  Serial.println(F("[Vario] Full IMU calibration starting - keep the device still and level..."));
+  PiezoBeeper_setFreq(600);  /* audible "calibrating, hold still" cue */
+
+  imu_1.calibrateAccelGyro();
+
+  settings->imu_accel_bias[0] = imu_1.getAccBiasX();
+  settings->imu_accel_bias[1] = imu_1.getAccBiasY();
+  settings->imu_accel_bias[2] = imu_1.getAccBiasZ();
+  settings->imu_gyro_bias[0]  = imu_1.getGyroBiasX();
+  settings->imu_gyro_bias[1]  = imu_1.getGyroBiasY();
+  settings->imu_gyro_bias[2]  = imu_1.getGyroBiasZ();
+  settings->imu_calibrated    = true;
+
+  EEPROM_store();
+
+  /* The continuous vertical-accel bias tracked above is relative to
+     whatever the IMU was reporting before this fresh calibration -
+     restart it so it doesn't fight the new hardware-level bias. */
+  accel_bias_z      = 0;
+  accel_bias_valid  = false;
+  still_duration     = 0;
+  still_bias_applied = false;
+
+  PiezoBeeper_setFreq(0);
+  Serial.println(F("[Vario] Full IMU calibration complete and saved."));
+#endif
+}
+
 void Vario_toggleMute(void) {
   beeper_muted = !beeper_muted;
   char buf[40];
@@ -290,6 +402,7 @@ float Vario_getVario(void) { return 0; }
 float Vario_getAlt(void) { return 0; }
 float Vario_getRawVario(void) { return 0; }
 void Vario_calibrateAlt(float gps_altitude) { (void)gps_altitude; }
+void Vario_calibrateIMU(void) {}
 void Vario_toggleMute(void) {}
 bool Vario_isMuted(void) { return false; }
 

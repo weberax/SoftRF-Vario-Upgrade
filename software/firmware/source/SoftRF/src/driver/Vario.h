@@ -60,6 +60,13 @@ float Vario_getRawVario(void);
 void Vario_calibrateAlt(float gps_altitude);
 
 /**
+ * Run a full accel+gyro calibration of the MPU9250 (device must be held
+ * still and level) and persist the resulting bias to EEPROM. Blocking,
+ * takes roughly 1-2 seconds. No-op if no MPU9250 is present.
+ */
+void Vario_calibrateIMU(void);
+
+/**
  * Toggle vario beeper mute state.
  */
 void Vario_toggleMute(void);

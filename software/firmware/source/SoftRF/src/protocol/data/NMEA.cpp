@@ -26,6 +26,7 @@
 #include "../../driver/EEPROM.h"
 #include "../../driver/Battery.h"
 #include "../../driver/Baro.h"
+#include "../../driver/Vario.h"
 #include "../../TrafficHelper.h"
 
 #define ADDR_TO_HEX_STR(s, c) (s += String((c) < 0x10 ? "0" : "") + String((c), HEX))
@@ -249,10 +250,12 @@ void NMEA_loop()
     char str_Vcc[6];
     dtostrf(Battery_voltage(), 3, 1, str_Vcc);
 
+    /* Kalman-fused altitude/vertical-speed (Vario.cpp), not raw baro - falls
+       back to plain pressure_altitude/0 when the vario feature is excluded. */
     snprintf_P(NMEABuffer, sizeof(NMEABuffer), PSTR("$LK8EX1,999999,%d,%d,%d,%s*"),
-            constrain((int) ThisAircraft.pressure_altitude, -1000, 99998), /* meters */
-            (int) ((ThisAircraft.vs * 100) / (_GPS_FEET_PER_METER * 60)),  /* cm/s   */
-            constrain((int) Baro_temperature(), -99, 98),                  /* deg. C */
+            constrain((int) Vario_getAlt(), -1000, 99998),   /* meters */
+            (int) (Vario_getVario() * 100),                  /* cm/s   */
+            constrain((int) Baro_temperature(), -99, 98),    /* deg. C */
             str_Vcc);
 
     NMEA_add_checksum(NMEABuffer, sizeof(NMEABuffer) - strlen(NMEABuffer));

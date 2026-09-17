@@ -251,9 +251,10 @@ static void EPD_Draw_NavBoxes()
 void EPD_vario_loop()
 {
   if (isTimeToEPD()) {
-    /* Read data directly from sensors */
+    /* GPS speed/heading/altitude read directly; vertical speed comes from the
+       Kalman-fused baro+IMU estimate (Vario.cpp), not raw GPS/baro vs. */
     float speed_kmh = gnss.speed.kmph();  /* GPS speed in km/h */
-    float vs_m_s = ThisAircraft.vs / (_GPS_FEET_PER_METER * 60.0);  /* ft/min to m/s */
+    float vs_m_s = Vario_getVario();      /* Kalman-filtered vertical speed, m/s */
 
     navbox1.value = speed_kmh;
     navbox2.value = ThisAircraft.course;

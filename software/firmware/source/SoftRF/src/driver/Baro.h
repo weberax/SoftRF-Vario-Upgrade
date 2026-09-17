@@ -22,9 +22,12 @@
 #define BMP280_ADDRESS_ALT    0x76 /* GY-91, SA0 is NC */
 #define SPA06_ADDRESS_ALT     0x76 /* SDO = LOW */
 
-#define VS_AVERAGING_FACTOR   3
+/* 25 baro sensor altitude readings per second (matches BMP280 fast-vario-mode
+ * config in bmp280_setup_fast() - Vario.cpp's Kalman loop polls at the same
+ * 40ms/25Hz cadence and needs a genuinely fresh cache each time). Averaging
+ * window stays 1 second, just sampled far more finely. */
+#define VS_AVERAGING_FACTOR   25
 
-/* 3 baro sensor altitude readings per second */
 #define isTimeToBaroAltitude() ((millis() - BaroAltitudeTimeMarker) > (1000 / VS_AVERAGING_FACTOR))
 /* read pressure and temperature every 3 seconds */
 #define isTimeToBaroPresTemp() ((millis() - BaroPresTempTimeMarker) > 3000)
